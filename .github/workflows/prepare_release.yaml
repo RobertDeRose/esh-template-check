@@ -1,0 +1,85 @@
+name: Prepare Release
+
+on:
+  create
+
+jobs:
+  should-run:
+    if: startsWith(github.ref, 'refs/heads/release/')
+    runs-on: ubuntu-latest
+
+    outputs:
+      ok: ${{ steps.check_version.outputs.OK }}
+      version: ${{ steps.check_version.outputs.VERSION }}
+
+    steps:
+      - id: check_version
+        run: |
+          # Checking if should run
+
+          VERSION="${GITHUB_REF_NAME#release/}"
+          OK=falae
+
+          [[ "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] && OK=true
+
+          echo -e "OK=${OK}\nVERSION=${VERSION}" >> "${GITHUB_OUTPUT}"
+
+  prepare-release:
+    needs: should-run
+
+    if: ${{ needs.should-run.outputs.ok == 'true' }}
+    runs-on: ubuntu-latest
+
+    env:
+      VERSION: ${{ needs.should-run.outputs.version }}
+
+    steps:
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Latest Version of ESH
+        run: |
+          mkdir -p ~/.local/bin
+          curl https://api.github.com/repos/jirutka/esh/tags 2>/dev/null| jq -r '.[0].tarball_url' \
+            | xargs curl -sSL \
+            | tar zxvf - -C ~/.local/bin --wildcards '*/esh' --strip-components=1 >/dev/null
+
+          sed -i 's/VERSION/ESH_VERSION/g' ~/.local/bin/esh
+          echo "~/.local/bin" >> "${GITHUB_PATH}"
+
+      - name: Updating Files with Tag
+        run: |
+          export TAG="v${VERSION}"
+
+          function process_templates() {
+            find . -name '*.esh' | while read -r template; do
+              file="${template%.*}"
+
+              echo "Processing ${file}"
+              esh -s /bin/bash -o "${file}" "${template}" || {
+                echo "The template '${template}' has errors"
+                exit 1
+              }
+              chmod --reference="${template}" "${file}"
+              git add "${file}"
+            done
+          }
+          git checkout "${GITHUB_REF_NAME}"
+
+          git config user.name "GitHub Actions"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          process_templates
+
+          git commit -F <(printf 'Release %s\n\nCreated by %s\n' "${TAG}" "${GITHUB_ACTOR}")
+          git push origin "${GITHUB_REF_NAME}"
+
+      - name: Create Pull Request
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          gh pr create \
+            --base main \
+            --title "Release v${VERSION}" \
+            --body "Release ${VERSION} was prepared by ${GITHUB_ACTOR}"

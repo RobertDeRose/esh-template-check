@@ -1,0 +1,23 @@
+#!/bin/bash
+<%# --- -%>
+<%# check_args: -s bash  -%>
+<%# test_cases: -%>
+<%#   - VAR1: one -%>
+<%#     VAR2: two -%>
+<%#   - VAR1: a -%>
+<%#     VAR2: b -%>
+<%#   - VAR1: 1 -%>
+<%#     VAR2: 2 -%>
+<%# --- -%>
+
+<% if [[ "${VAR1}" =~ ^(one|a)$ ]]; then -%>
+<%= "# Generating script for ${VAR2}" %>
+hello_world() {
+    local name
+<% if [[ "${VAR1}" == "one" ]]; then %>
+    name="Rob"
+<% elif [[ "${VAR1}" == "a" ]]; then %>
+    name="Bob"
+<% fi %>
+    echo "Hello ${name} you got ${VAR2}"
+}
