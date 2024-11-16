@@ -1,0 +1,6 @@
+- id: esh-template-check
+  name: ESH Template Check
+  description: Pre-processes ESH templates, renders them with test cases, and runs optional shellcheck.
+  language: docker_image
+  entry: docker.io/robertderose/esh-template-check:<%= "${TAG}" %>
+  files: \.esh$
